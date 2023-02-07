@@ -4,7 +4,6 @@
 #include "FormUtil.h"
 #include <magic_enum.hpp>
 
-
 void RumbleManager::AddFoley()
 {
 	eventVibrations.insert({ animationEventName, {} });
@@ -33,6 +32,8 @@ void RumbleManager::Menu()
 		}
 		if (ImGui::BeginTabBar("##")) {
 			if (ImGui::BeginTabItem("Main")) {
+				ImGui::Selectable("Live Update Overrides", &liveUpdate);
+
 				ImGui::Text("Misc");
 
 				ImGui::InputFloat("Noise 1 Speed", &noise1speed);
@@ -40,15 +41,8 @@ void RumbleManager::Menu()
 
 				ImGui::Text("Weapons");
 
-				ImGui::InputFloat("Hit Pow", &hitPow);
-				ImGui::InputFloat("Hit Duration", &hitDuration);
-
-				ImGui::InputFloat("Hit Blocked Pow", &hitBlockedPow);
-				ImGui::InputFloat("Hit Blocked Duration", &hitBlockedDuration);
-
 				ImGui::InputFloat("Power Attack Pow", &powerAttackPow);
 				ImGui::InputFloat("Swing Weapon Mult", &swingWeaponMult);
-				ImGui::InputFloat("Casting Mult", &castingMult);
 
 				ImGui::Text("Submerged");
 
@@ -75,9 +69,12 @@ void RumbleManager::Menu()
 				ImGui::InputFloat("Small Amp Pre Mult", &smallAmpPreMult);
 				ImGui::InputFloat("Small Amp Pow", &smallAmpPow);
 				ImGui::InputFloat("Small Amp Post Mult", &smallAmpPostMult);
-
 				ImGui::InputFloat("Small Amp Left Balance", &smallAmpLeftBalance);
-				ImGui::InputFloat("Large Amp Right Balance", &smallAmpRightBalance);
+				ImGui::InputFloat("Small Amp Right Balance", &smallAmpRightBalance);
+
+				ImGui::InputFloat("Large Amp Pre Mult", &largeAmpPreMult);
+				ImGui::InputFloat("Large Amp Pow", &largeAmpPow);
+				ImGui::InputFloat("Large Amp Post Mult", &largeAmpPostMult);
 
 				ImGui::EndTabItem();
 			}
@@ -204,6 +201,27 @@ void RumbleManager::SaveJSON()
 	}
 }
 
+void RumbleManager::UpdateOverrides()
+{
+	VanillaOverrideBase();
+	for (auto& entry : vanillaOverrides) {
+		if (auto form = FormUtil::GetFormFromIdentifier(entry.first)) {
+			if (auto formTyped = form->As<RE::BGSSoundDescriptorForm>()) {
+				RE::BGSStandardSoundDef* sd = (RE::BGSStandardSoundDef*)formTyped->soundDescriptor;
+				sd->lengthCharacteristics.rumbleSendValue = (std::uint8_t)entry.second.rumbleSendValue;
+			}
+		}
+	}
+}
+
+void RumbleManager::VanillaOverrideBase()
+{
+	for (auto& ptr : overrideForms) {
+		RE::BGSStandardSoundDef* sd = (RE::BGSStandardSoundDef*)ptr;
+		sd->lengthCharacteristics.rumbleSendValue = (std::uint8_t)baseRumbleOverride;
+	}
+}
+
 void RumbleManager::DataLoaded()
 {
 	auto  dataHandler = RE::TESDataHandler::GetSingleton();
@@ -214,8 +232,8 @@ void RumbleManager::DataLoaded()
 			overrideForms.insert(sd);
 		}
 	}
-	HitEventHandler::Register();
 	FootstepEventHandler::Register();
+	MenuOpenCloseEventHandler::Register();
 	UpdateOverrides();
 	dataLoaded = true;
 }
@@ -335,6 +353,22 @@ RE::DestructibleObjectData* GetDestructibleForm(RE::TESBoundObject* a_form)
 	return func(a_form);
 }
 
+RE::BSEventNotifyControl MenuOpenCloseEventHandler::ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*)
+{
+	if (a_event->menuName == RE::LoadingMenu::MENU_NAME) {
+		RumbleManager::GetSingleton()->activeVibrations.clear();
+	}
+	return RE::BSEventNotifyControl::kContinue;
+}
+
+bool MenuOpenCloseEventHandler::Register()
+{
+	static MenuOpenCloseEventHandler singleton;
+	RE::UI::GetSingleton()->GetEventSource<RE::MenuOpenCloseEvent>()->AddEventSink(&singleton);
+	logger::info("Registered {}", typeid(singleton).name());
+	return true;
+}
+
 bool IsDestructible(RE::TESObjectREFR* a_form)
 {
 	if (a_form && GetDestructibleForm(a_form->GetBaseObject()))
@@ -349,46 +383,24 @@ bool HasVelocity(RE::TESObjectREFR* a_form)
 	return velocity.Length();
 }
 
-RE::BSEventNotifyControl HitEventHandler::ProcessEvent(const RE::TESHitEvent* a_event, RE::BSTEventSource<RE::TESHitEvent>*)
+bool PlayerHasCrossbow()
 {
-	auto hitsource = RE::TESForm::LookupByID<RE::TESObjectWEAP>(a_event->source);
 	if (auto player = RE::PlayerCharacter::GetSingleton()) {
-		if (a_event->source == player->formID) {
-			if (hitsource && hitsource->IsMelee()) {
-				auto target = a_event->target ? a_event->target.get() : nullptr;
-				auto aggressor = a_event->cause ? a_event->cause->As<RE::Actor>() : nullptr;
-				if (target && aggressor && target->GetFormType() != RE::FormType::ActorCharacter && !IsDestructible(target) && !HasVelocity(target)) {
-					RumbleManager::GetSingleton()->hitBlockedTime = RumbleManager::GetSingleton()->hitBlockedDuration;
-					return RE::BSEventNotifyControl::kContinue;
-				}
-				RumbleManager::GetSingleton()->hitTime = RumbleManager::GetSingleton()->hitDuration;
+		if (auto object = player->GetEquippedObject(false)) {
+			if (auto weapon = object->As<RE::TESObjectWEAP>()) {
+				return weapon->IsCrossbow();
 			}
 		}
 	}
-	return RE::BSEventNotifyControl::kContinue;
-}
-
-bool HitEventHandler::Register()
-{
-	static HitEventHandler singleton;
-	auto                   ScriptEventSource = RE::ScriptEventSourceHolder::GetSingleton();
-	if (!ScriptEventSource) {
-		logger::error("Script event source not found");
-		return false;
-	}
-	ScriptEventSource->AddEventSink(&singleton);
-	logger::info("Registered {}", typeid(singleton).name());
-	return true;
+	return false;
 }
 
 bool RumbleManager::ProcessHit(int type, float power, float)
 {
 	if (type == 1) {
-		hitBlockedTime = hitBlockedDuration;
-		return false;
+		return !PlayerHasCrossbow();
 	} else if (power == 0.5) {
-		hitTime = hitDuration;
-		return false;
+		return !PlayerHasCrossbow();
 	}
 	return true;
 }
@@ -456,8 +468,6 @@ bool RumbleManager::SetState(XINPUT_VIBRATION* pVibration)
 			}
 
 			double powMult = 1.0f;
-			double leftMult = 1.0f;
-			double rightMult = 1.0f;
 
 			if (auto player = RE::PlayerCharacter::GetSingleton()) {
 				if (IsPowerAttacking(player)) {
@@ -468,30 +478,9 @@ bool RumbleManager::SetState(XINPUT_VIBRATION* pVibration)
 						powMult *= swingWeaponMult;
 					}
 				}
-				bool cst_r, cst_l, cst_d;
-				player->GetGraphVariableBool("IsCastingRight", cst_r);
-				player->GetGraphVariableBool("IsCastingLeft", cst_l);
-				player->GetGraphVariableBool("IsCastingDual", cst_d);
-				if (!cst_d) {
-					if (cst_l && !cst_r) {
-						rightMult *= castingMult;
-						leftMult /= castingMult;
-					} else if (cst_r && !cst_l) {
-						leftMult *= castingMult;
-						rightMult /= castingMult;
-					}
-				}
 			}
 
-			double hitMult = (hitTime / (hitDuration + FLT_MIN));
-			double hitBlockedMult = (hitBlockedTime > 0);
-
-			powMult *= (1 + (hitMult * hitPow)) * (1 + (hitBlockedMult * hitBlockedPow));
-
-			hitTime = max(0, hitTime - deltaTime);
-			hitBlockedTime = max(0, hitBlockedTime - deltaTime);
-
-			auto smallAmp = (pow(1 + (smallRumble * smallAmpPreMult), smallAmpPow * powMult) - 1) * smallAmpPostMult * leftMult;
+			double smallAmp = (pow(1 + (smallRumble * smallAmpPreMult), smallAmpPow * powMult) - 1) * smallAmpPostMult;
 
 			if (auto player = RE::PlayerCharacter::GetSingleton()) {
 				if (auto weapon = player->GetAttackingWeapon()) {
@@ -501,15 +490,18 @@ bool RumbleManager::SetState(XINPUT_VIBRATION* pVibration)
 				}
 			}
 
+			smallAmp = std::clamp(smallAmp, 0.0, 1.0);
+
 			auto leftAdd = std::lerp(smallAmp * smallAmpLeftBalance, smallAmp, smallAmp);
 			auto rightAdd = std::lerp(smallAmp, smallAmp * smallAmpRightBalance, smallAmp);
-			leftVibration += leftAdd;
+
+			leftVibration += leftAdd + largeAmp;
 			rightVibration += rightAdd;
 
 			long double leftVibrationOriginal = (double)pVibration->wLeftMotorSpeed / 65535;
 			long double rightVibrationOriginal = (double)pVibration->wRightMotorSpeed / 65535;
 
-			leftVibrationOriginal += leftAdd;
+			leftVibrationOriginal += leftAdd + largeAmp;
 			rightVibrationOriginal += rightAdd;
 
 			leftVibration = min(leftVibration, 1.0f);
@@ -522,29 +514,27 @@ bool RumbleManager::SetState(XINPUT_VIBRATION* pVibration)
 			pVibration->wRightMotorSpeed = max(static_cast<std::uint16_t>(rightVibrationOriginal * 65535.0), static_cast<std::uint16_t>(rightVibration * 65535.0));
 
 			noise1timer += deltaTime * noise1speed;
+		} else {
+			long double leftVibrationOriginal = (double)pVibration->wLeftMotorSpeed / 65535;
+			long double rightVibrationOriginal = (double)pVibration->wRightMotorSpeed / 65535;
+
+			double smallAmp = (pow(1 + (smallRumble * smallAmpPreMult), smallAmpPow) - 1) * smallAmpPostMult;
+
+			smallAmp = std::clamp(smallAmp, 0.0, 1.0);
+
+			auto leftAdd = std::lerp(smallAmp * smallAmpLeftBalance, smallAmp, smallAmp);
+			auto rightAdd = std::lerp(smallAmp, smallAmp * smallAmpRightBalance, smallAmp);
+
+			leftVibrationOriginal += leftAdd + largeAmp;
+			rightVibrationOriginal += rightAdd;
+
+			leftVibrationOriginal = min(leftVibrationOriginal, 1.0f);
+			rightVibrationOriginal = min(rightVibrationOriginal, 1.0f);
+
+			pVibration->wLeftMotorSpeed = static_cast<std::uint16_t>(leftVibrationOriginal * 65535.0);
+			pVibration->wRightMotorSpeed = static_cast<std::uint16_t>(rightVibrationOriginal * 65535.0);
 		}
 	}
 
 	return false;
-}
-
-void RumbleManager::UpdateOverrides()
-{
-	VanillaOverrideBase();
-	for (auto& entry : vanillaOverrides) {
-		if (auto form = FormUtil::GetFormFromIdentifier(entry.first)) {
-			if (auto formTyped = form->As<RE::BGSSoundDescriptorForm>()) {
-				RE::BGSStandardSoundDef* sd = (RE::BGSStandardSoundDef*)formTyped->soundDescriptor;
-				sd->lengthCharacteristics.rumbleSendValue = (std::uint8_t)entry.second.rumbleSendValue;
-			}
-		}
-	}
-}
-
-void RumbleManager::VanillaOverrideBase()
-{
-	for (auto& ptr : overrideForms) {
-		RE::BGSStandardSoundDef* sd = (RE::BGSStandardSoundDef*)ptr;
-		sd->lengthCharacteristics.rumbleSendValue = (std::uint8_t)baseRumbleOverride;
-	}
 }

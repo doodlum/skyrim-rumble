@@ -20,11 +20,11 @@ public:
 	static bool                      Register();
 };
 
-class HitEventHandler : public RE::BSTEventSink<RE::TESHitEvent>
+class MenuOpenCloseEventHandler : public RE::BSTEventSink<RE::MenuOpenCloseEvent>
 {
 public:
-	virtual RE::BSEventNotifyControl ProcessEvent(const RE::TESHitEvent* a_event, RE::BSTEventSource<RE::TESHitEvent>* a_eventSource);
-	static bool Register();
+	virtual RE::BSEventNotifyControl ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>* a_eventSource);
+	static bool                      Register();
 };
 
 class RumbleManager
@@ -117,15 +117,13 @@ public:
 		AddDiscreteRumbleImpl(1, power.y, duration);
 	}
 
-	bool   liveUpdate = false;
+	bool liveUpdate = false;
 
 	float  smallRumble = 0;
 	float  largeRumble = 0;
 	bool   dataLoaded = false;
 	bool   onGrindstone = false;
 	double noise1timer = 0.0;
-	float  hitTime = 0.0f;
-	float  hitBlockedTime = 0.0f;
 
 	siv::PerlinNoise noise1{ 1 };
 	float            noise1speed = 100000.0f;
@@ -146,21 +144,17 @@ public:
 	float rainLargePower = 0.020f;
 
 	float smallAmpPreMult = 1.0f;
-	float smallAmpPow = 4.0f;
-	float smallAmpPostMult = 1.0f;
+	float smallAmpPow = 3.0f;
+	float smallAmpPostMult = 2.0f;
 	float smallAmpLeftBalance = 1.0f;
 	float smallAmpRightBalance = 0.0f;
 
+	float largeAmpPreMult = 1.0f;
+	float largeAmpPow = 3.0f;
+	float largeAmpPostMult = 3.0f;
+
 	float powerAttackPow = 1.25f;
-
-	float hitPow = 20.0f;
-	float hitDuration = 0.25f;
-
-	float hitBlockedPow = 10.0f;
-	float hitBlockedDuration = 0.25f;
-
 	float swingWeaponMult = 2.0f;
-	float castingMult = 0.5f;
 
 	std::list<VibrationCustom>             activeVibrations;
 	std::map<std::string, VibrationCustom> eventVibrations;
@@ -170,6 +164,8 @@ public:
 	std::set<void*>            overrideForms;
 	std::string                animationEventName;
 	std::string                overrideIdentifier;
+
+	float largeAmp;
 
 	void DataLoaded();
 	;
@@ -213,17 +209,6 @@ public:
 protected:
 	struct Hooks
 	{
-		struct PCProcessAnimGraphEvent_ProcessEvent
-		{
-			static RE::BSEventNotifyControl thunk(RE::BSTEventSink<RE::BSAnimationGraphEvent>* a_this, RE::BSAnimationGraphEvent& a_event,
-				RE::BSTEventSource<RE::BSAnimationGraphEvent>* a_src)
-			{
-				GetSingleton()->AnimationEvent(&a_event);
-				return func(a_this, a_event, a_src);
-			}
-			static inline REL::Relocation<decltype(thunk)> func;
-		};
-
 		struct TESObjectREFR_ProcessHitEvent_AddDiscreteRumble
 		{
 			static void thunk(std::int32_t type, float power, float duration)
@@ -266,7 +251,8 @@ protected:
 		{
 			static void thunk(std::int32_t id, [[maybe_unused]] float power)
 			{
-				return func(id, power);
+				GetSingleton()->largeAmp = power;
+				return func(id, 0);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -283,9 +269,6 @@ protected:
 
 		static void Install()
 		{
-			REL::Relocation<uintptr_t> PCProcessAnimGraphEventVtbl{ RE::VTABLE_PlayerCharacter[2] };
-			PCProcessAnimGraphEvent_ProcessEvent::func = PCProcessAnimGraphEventVtbl.write_vfunc(0x1, &PCProcessAnimGraphEvent_ProcessEvent::thunk);
-
 			stl::write_thunk_call<TESObjectREFR_ProcessHitEvent_AddDiscreteRumble>(REL::RelocationID(37633, 38586).address() + REL::Relocate(0xC80, 0xEC3));
 
 			stl::write_thunk_call<BGSAudioMonitors_Update__powf_small>(REL::RelocationID(32314, 33058).address() + REL::Relocate(0x8F, 0x10C));
