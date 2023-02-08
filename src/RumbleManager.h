@@ -137,7 +137,7 @@ public:
 	siv::PerlinNoise noise1{ 1 };
 	float            noiseSpeed = 100000.0f;
 
-	float quadSprintMult = 1.25f;
+	float quadSprintMult = 1.5f;
 
 	float powerAttackPow = 1.25f;
 	float swingWeaponMult = 2.0f;
@@ -313,14 +313,14 @@ private:
 	{
 		ZeroMemory(sourcesCustom, ARRAYSIZE(sourcesCustom));
 
-		sourcesCustom[VibrationsCustom::FootstepFront] = Create(0.050f, 0.050f, 0.025f);
-		sourcesCustom[VibrationsCustom::FootstepBack] = Create(0.100f, 0.025f, 0.050f);
+		sourcesCustom[VibrationsCustom::FootstepFront] = Create(0.100f, 0.015f, 0.020f);
+		sourcesCustom[VibrationsCustom::FootstepBack] = Create(0.100f, 0.020f, 0.015f);
 
-		sourcesCustom[VibrationsCustom::FootstepWadingLeft] = Create(1.000f, 0.011f, 0.000f);
-		sourcesCustom[VibrationsCustom::FootstepWadingRight] = Create(1.000f, 0.000f, 0.011f);
+		sourcesCustom[VibrationsCustom::FootstepWadingLeft] = Create(1.000f, 0.015f, 0.000f);
+		sourcesCustom[VibrationsCustom::FootstepWadingRight] = Create(1.000f, 0.000f, 0.015f);
 
-		sourcesCustom[VibrationsCustom::FootstepSprintLeft] = Create(0.200f, 0.020f, 0.010f);
-		sourcesCustom[VibrationsCustom::FootstepSprintRight] = Create(0.200f, 0.010f, 0.020f);
+		sourcesCustom[VibrationsCustom::FootstepSprintLeft] = Create(0.100f, 0.015f, 0.010f);
+		sourcesCustom[VibrationsCustom::FootstepSprintRight] = Create(0.100f, 0.010f, 0.015f);
 
 		Load();
 	}

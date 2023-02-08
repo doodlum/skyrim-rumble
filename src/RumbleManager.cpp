@@ -412,51 +412,56 @@ void RumbleManager::FootstepEvent(const RE::BGSFootstepEvent* a_event)
 					VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepFront];
 					if (mount->AsActorState()->IsSprinting()) {
 						temp.motors *= quadSprintMult;
-						temp.duration *= quadSprintMult;
 					}
 					Trigger(temp);
 				} else {
 					VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepBack];
 					if (mount->AsActorState()->IsSprinting()) {
 						temp.motors *= quadSprintMult;
-						temp.duration *= quadSprintMult;
 					}
 					Trigger(temp);
 				}
 			}
 		} else if (a_event->actor == player->GetHandle()) {
-			float level = GetSubmergedLevel(player);
-			if (level > 0.0f) {
-				if (a_event->tag == "FootLeft") {
-					VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepWadingLeft];
-					temp.motors = (temp.motors * 0.25f) + temp.motors * level * 0.75f;
-					Trigger(temp);
-				} else if (a_event->tag == "FootRight") {
-					VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepWadingRight];
-					temp.motors = (temp.motors * 0.25f) + temp.motors * level * 0.75f;
-					Trigger(temp);
-				} else {
-					VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepWadingLeft];
-					temp.motors = (temp.motors * 0.25f) + temp.motors * level * 0.75f;
-					Trigger(temp);
-					temp = sourcesCustom[VibrationsCustom::FootstepWadingRight];
-					temp.motors = (temp.motors * 0.25f) + temp.motors * level * 0.75f;
-					Trigger(temp);
-				}
-			} else if (a_event->tag == "FootFront") {
-				VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepFront];
-				if (player->AsActorState()->IsSprinting()) {
-					temp.motors *= quadSprintMult;
-					temp.duration *= quadSprintMult;
-				}
+
+			if (a_event->tag == "FootSprintLeft") {
+				VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepSprintLeft];
 				Trigger(temp);
-			} else if (a_event->tag == "FootBack") {
-				VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepBack];
-				if (player->AsActorState()->IsSprinting()) {
-					temp.motors *= quadSprintMult;
-					temp.duration *= quadSprintMult;
-				}
+			} else if (a_event->tag == "FootSprintRight") {
+				VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepSprintRight];
 				Trigger(temp);
+			} else {
+				float level = GetSubmergedLevel(player);
+				if (level > 0.0f) {
+					if (a_event->tag == "FootLeft") {
+						VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepWadingLeft];
+						temp.motors = (temp.motors * 0.25f) + temp.motors * level * 0.75f;
+						Trigger(temp);
+					} else if (a_event->tag == "FootRight") {
+						VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepWadingRight];
+						temp.motors = (temp.motors * 0.25f) + temp.motors * level * 0.75f;
+						Trigger(temp);
+					} else {
+						VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepWadingLeft];
+						temp.motors = (temp.motors * 0.25f) + temp.motors * level * 0.75f;
+						Trigger(temp);
+						temp = sourcesCustom[VibrationsCustom::FootstepWadingRight];
+						temp.motors = (temp.motors * 0.25f) + temp.motors * level * 0.75f;
+						Trigger(temp);
+					}
+				} else if (a_event->tag == "FootFront") {
+					VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepFront];
+					if (player->AsActorState()->IsSprinting()) {
+						temp.motors *= quadSprintMult;
+					}
+					Trigger(temp);
+				} else if (a_event->tag == "FootBack") {
+					VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepBack];
+					if (player->AsActorState()->IsSprinting()) {
+						temp.motors *= quadSprintMult;
+					}
+					Trigger(temp);
+				}
 			}
 		}
 	}
@@ -484,22 +489,15 @@ void RumbleManager::AnimationEvent(const RE::BSAnimationGraphEvent* a_event)
 		Trigger((*it).second);
 	} else if (stringified == "tailSharpeningWheel") {
 		onGrindstone = true;
-	} else if (stringified == "FootSprintLeft" && GetSubmergedLevel((RE::Actor*)a_event->holder) <= 0) {
+	} else if (stringified == "FootSprintLeft") {
 		VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepSprintLeft];
 		Trigger(temp);
-	} else if (stringified == "FootSprintRight" && GetSubmergedLevel((RE::Actor*)a_event->holder) <= 0) {
+	} else if (stringified == "FootSprintRight") {
 		VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepSprintRight];
 		Trigger(temp);
 	} else {
 		onGrindstone = false;
 	}
-}
-
-RE::DestructibleObjectData* GetDestructibleForm(RE::TESBoundObject* a_form)
-{
-	using func_t = decltype(&GetDestructibleForm);
-	REL::Relocation<func_t> func{ REL::RelocationID(14055, 14152) };  // 1.5.97 1401832b0
-	return func(a_form);
 }
 
 RE::BSEventNotifyControl MenuOpenCloseEventHandler::ProcessEvent(const RE::MenuOpenCloseEvent* a_event, RE::BSTEventSource<RE::MenuOpenCloseEvent>*)
@@ -518,20 +516,6 @@ bool MenuOpenCloseEventHandler::Register()
 	RE::UI::GetSingleton()->GetEventSource<RE::MenuOpenCloseEvent>()->AddEventSink(&singleton);
 	logger::info("Registered {}", typeid(singleton).name());
 	return true;
-}
-
-bool IsDestructible(RE::TESObjectREFR* a_form)
-{
-	if (a_form && GetDestructibleForm(a_form->GetBaseObject()))
-		return true;
-	return false;
-}
-
-bool HasVelocity(RE::TESObjectREFR* a_form)
-{
-	RE::NiPoint3 velocity;
-	a_form->GetLinearVelocity(velocity);
-	return velocity.Length();
 }
 
 bool PlayerHasCrossbow()

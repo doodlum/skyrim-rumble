@@ -1,0 +1,40 @@
+{
+ "Events": [
+  {
+   "Duration": 0.20000000298023224,
+   "Event": "FootSprintLeft",
+   "Left": 0.014999999664723873,
+   "Right": 0.0,
+   "Type": 0
+  },
+  {
+   "Duration": 0.20000000298023224,
+   "Event": "FootSprintRight",
+   "Left": 0.0,
+   "Right": 0.029999999329447746,
+   "Type": 0
+  },
+  {
+   "Duration": 0.05000000074505806,
+   "Event": "SoundPlay.NPCHumanPickAxeDistant",
+   "Left": 1.0,
+   "Right": 1.0,
+   "Type": 1
+  },
+  {
+   "Duration": 3.0,
+   "Event": "SoundPlay.NPCHumanStirPot",
+   "Left": 0.010099999606609344,
+   "Right": 0.010099999606609344,
+   "Type": 0
+  },
+  {
+   "Duration": 0.05000000074505806,
+   "Event": "SoundPlay.NPCHumanWoodChopDistant",
+   "Left": 0.5,
+   "Right": 1.0,
+   "Type": 1
+  }
+ ],
+ "Overrides": null
+}
