@@ -1,7 +1,7 @@
 #include "RumbleManager.h"
 
 
-extern "C" __declspec(dllexport) const char* NAME = "RERumble";
+extern "C" __declspec(dllexport) const char* NAME = "Rumble";
 
 extern "C" __declspec(dllexport) const char* DESCRIPTION = "by doodlez\n";
 

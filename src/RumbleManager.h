@@ -1,10 +1,12 @@
 #pragma once
 
-#include <PerlinNoise.hpp>
+#include <shared_mutex>
 #include <xinput.h>
 
 #include <nlohmann/json.hpp>
 using json = nlohmann::json;
+
+#include <PerlinNoise.hpp>
 
 class AnimationEventHandler : public RE::BSTEventSink<RE::BSAnimationGraphEvent>
 {
@@ -74,6 +76,8 @@ public:
 		FootstepBack,
 		FootstepWadingLeft,
 		FootstepWadingRight,
+		FootstepSprintLeft,
+		FootstepSprintRight,
 		VibrationsCustomCount
 	};
 
@@ -117,31 +121,44 @@ public:
 		AddDiscreteRumbleImpl(1, power.y, duration);
 	}
 
+	std::shared_mutex mutex;
+	
+	bool enableMod = true;
+
 	bool liveUpdate = false;
 
 	float  smallRumble = 0;
 	float  largeRumble = 0;
 	bool   dataLoaded = false;
+	bool   inLoadingScreen = false;
 	bool   onGrindstone = false;
 	double noise1timer = 0.0;
 
 	siv::PerlinNoise noise1{ 1 };
-	float            noise1speed = 100000.0f;
+	float            noiseSpeed = 100000.0f;
 
 	float quadSprintMult = 1.25f;
 
-	float grindstoneSmallPower = 0.020f;
-	float grindstonePow = 1.5f;
-	float grindstoneLargePower = 0.020f;
+	float powerAttackPow = 1.25f;
+	float swingWeaponMult = 2.0f;
 
-	float submergedSmallPower = 0.020f;
+	bool  crossbowFix = true;
+	float crossbowLeftMotor = 0.5f;
+	float crossbowRightMotor = 1.0f;
+	float crossbowDuration = 0.22f;
+
+	float grindstonePow = 1.5f;
+	float grindstoneLeftPower = 0.017f;
+	float grindstoneRightPower= 0.017f;
+
 	float submergedPow = 1.5f;
-	float submergedLargePower = 0.020f;
+	float submergedLeftPower = 0.020f;
+	float submergedRightPower= 0.020f;
 	float submergedMountMult = 1.5f;
 
-	float rainSmallPower = 0.015f;
 	float rainPow = 1.5f;
-	float rainLargePower = 0.020f;
+	float rainLeftPower = 0.015f;
+	float rainRightPower= 0.020f;
 
 	float smallAmpPreMult = 1.0f;
 	float smallAmpPow = 3.0f;
@@ -149,26 +166,19 @@ public:
 	float smallAmpLeftBalance = 1.0f;
 	float smallAmpRightBalance = 0.0f;
 
-	float largeAmpPreMult = 1.0f;
-	float largeAmpPow = 3.0f;
-	float largeAmpPostMult = 3.0f;
-
-	float powerAttackPow = 1.25f;
-	float swingWeaponMult = 2.0f;
-
 	std::list<VibrationCustom>             activeVibrations;
 	std::map<std::string, VibrationCustom> eventVibrations;
 
 	int                        baseRumbleOverride = 1;
 	std::map<std::string, int> vanillaOriginal;
 	std::set<void*>            overrideForms;
+	std::set<void*>            overrideCrossbows;
 	std::string                animationEventName;
 	std::string                overrideIdentifier;
 
 	float largeAmp;
 
 	void DataLoaded();
-	;
 
 	struct VanillaOverride
 	{
@@ -181,30 +191,33 @@ public:
 
 	void Trigger(VibrationsCustom type, float delay = 0)
 	{
+		std::lock_guard<std::shared_mutex> lk(mutex); 
 		VibrationCustom source = sourcesCustom[type];
 		source.time = source.duration + delay;
 		activeVibrations.emplace_back(source);
 	}
 	void Trigger(VibrationCustom source, float delay = 0)
 	{
+		std::lock_guard<std::shared_mutex> lk(mutex); 
 		source.time = source.duration + delay;
 		activeVibrations.emplace_back(source);
 	}
 
-	bool SetState(XINPUT_VIBRATION* pVibration);
+	void SetState(XINPUT_VIBRATION* pVibration);
 
 	void AddFoley();
 	void AddOverride();
 	void Menu();
 
-	void LoadJSON();
-	void SaveJSON();
+	void Load();
+	void Save();
 
 	void VanillaOverrideBase();
 
 	void UpdateOverrides();
 
 	bool ProcessHit(int type, float power, float duration);
+	void DisableFeatures();
 
 protected:
 	struct Hooks
@@ -213,7 +226,11 @@ protected:
 		{
 			static void thunk(std::int32_t type, float power, float duration)
 			{
-				func(type, GetSingleton()->ProcessHit(type, power, duration) ? power : 0, duration);
+				if (GetSingleton()->enableMod) {
+					func(type, GetSingleton()->ProcessHit(type, power, duration) ? power : 0, duration);
+				} else {
+					func(type, power, duration);
+				}
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -242,7 +259,10 @@ protected:
 		{
 			static void thunk(std::int32_t id, [[maybe_unused]] float power)
 			{
-				return func(id, 0);
+				if (GetSingleton()->enableMod) {
+					return func(id, 0);
+				}
+				return func(id, power);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -252,7 +272,10 @@ protected:
 			static void thunk(std::int32_t id, [[maybe_unused]] float power)
 			{
 				GetSingleton()->largeAmp = power;
-				return func(id, 0);
+				if (GetSingleton()->enableMod) {
+					return func(id, 0);
+				}
+				return func(id, power);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
 		};
@@ -261,7 +284,11 @@ protected:
 		{
 			static DWORD thunk(DWORD dwUserIndex, XINPUT_VIBRATION* pVibration)
 			{
-				GetSingleton()->SetState(pVibration);
+				if (GetSingleton()->enableMod) {
+					GetSingleton()->SetState(pVibration);
+				} else {
+					GetSingleton()->DisableFeatures();
+				}
 				return func(dwUserIndex, pVibration);
 			}
 			static inline REL::Relocation<decltype(thunk)> func;
@@ -292,7 +319,10 @@ private:
 		sourcesCustom[VibrationsCustom::FootstepWadingLeft] = Create(1.000f, 0.011f, 0.000f);
 		sourcesCustom[VibrationsCustom::FootstepWadingRight] = Create(1.000f, 0.000f, 0.011f);
 
-		LoadJSON();
+		sourcesCustom[VibrationsCustom::FootstepSprintLeft] = Create(0.200f, 0.020f, 0.010f);
+		sourcesCustom[VibrationsCustom::FootstepSprintRight] = Create(0.200f, 0.010f, 0.020f);
+
+		Load();
 	}
 
 	RumbleManager(const RumbleManager&) = delete;
