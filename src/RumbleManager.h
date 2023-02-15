@@ -122,7 +122,7 @@ public:
 	}
 
 	std::shared_mutex mutex;
-	
+
 	bool enableMod = true;
 
 	bool liveUpdate = false;
@@ -149,22 +149,28 @@ public:
 
 	float grindstonePow = 1.5f;
 	float grindstoneLeftPower = 0.017f;
-	float grindstoneRightPower= 0.017f;
+	float grindstoneRightPower = 0.017f;
 
 	float submergedPow = 1.5f;
 	float submergedLeftPower = 0.020f;
-	float submergedRightPower= 0.020f;
+	float submergedRightPower = 0.020f;
 	float submergedMountMult = 1.5f;
 
 	float rainPow = 1.5f;
 	float rainLeftPower = 0.015f;
-	float rainRightPower= 0.020f;
+	float rainRightPower = 0.020f;
 
 	float smallAmpPreMult = 1.0f;
 	float smallAmpPow = 3.0f;
-	float smallAmpPostMult = 2.0f;
+	float smallAmpPostMult = 3.0f;
 	float smallAmpLeftBalance = 1.0f;
 	float smallAmpRightBalance = 0.0f;
+
+	float largeAmpPreMult = 1.0f;
+	float largeAmpPow = 3.0f;
+	float largeAmpPostMult = 3.0f;
+	float largeAmpLeftBalance = 1.0f;
+	float largeAmpRightBalance = 0.0f;
 
 	std::list<VibrationCustom>             activeVibrations;
 	std::map<std::string, VibrationCustom> eventVibrations;
@@ -175,8 +181,6 @@ public:
 	std::set<void*>            overrideCrossbows;
 	std::string                animationEventName;
 	std::string                overrideIdentifier;
-
-	float largeAmp;
 
 	void DataLoaded();
 
@@ -191,14 +195,14 @@ public:
 
 	void Trigger(VibrationsCustom type, float delay = 0)
 	{
-		std::lock_guard<std::shared_mutex> lk(mutex); 
-		VibrationCustom source = sourcesCustom[type];
+		std::lock_guard<std::shared_mutex> lk(mutex);
+		VibrationCustom                    source = sourcesCustom[type];
 		source.time = source.duration + delay;
 		activeVibrations.emplace_back(source);
 	}
 	void Trigger(VibrationCustom source, float delay = 0)
 	{
-		std::lock_guard<std::shared_mutex> lk(mutex); 
+		std::lock_guard<std::shared_mutex> lk(mutex);
 		source.time = source.duration + delay;
 		activeVibrations.emplace_back(source);
 	}
@@ -219,7 +223,8 @@ public:
 	bool ProcessHit(int type, float power, float duration);
 	void DisableFeatures();
 
-protected:
+	static bool PlayerHasCrossbow();
+
 	struct Hooks
 	{
 		struct TESObjectREFR_ProcessHitEvent_AddDiscreteRumble
@@ -271,7 +276,6 @@ protected:
 		{
 			static void thunk(std::int32_t id, [[maybe_unused]] float power)
 			{
-				GetSingleton()->largeAmp = power;
 				if (GetSingleton()->enableMod) {
 					return func(id, 0);
 				}

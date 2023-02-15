@@ -34,7 +34,6 @@ namespace stl
 	void write_thunk_call(std::uintptr_t a_src)
 	{
 		SKSE::AllocTrampoline(14);
-
 		auto& trampoline = SKSE::GetTrampoline();
 		T::func = trampoline.write_call<5>(a_src, T::thunk);
 	}
@@ -77,7 +76,7 @@ void InitializeLog()
 		util::report_and_fail("Failed to find standard logging directory"sv);
 	}
 
-	*path /= fmt::format("{}.log"sv, Plugin::NAME);
+	*path /= std::format("{}.log"sv, Plugin::NAME);
 	auto       sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path->string(), true);
 #endif
 
@@ -124,6 +123,7 @@ EXTERN_C [[maybe_unused]] __declspec(dllexport) bool SKSEAPI SKSEPlugin_Query(co
 	return true;
 }
 
+#define IMGUI_DISABLE_INCLUDE_IMCONFIG_H
 #include <imgui.h>
-#include <imgui_stdlib.h>
 #include <reshade/reshade.hpp>
+#include <imgui_stdlib.h>

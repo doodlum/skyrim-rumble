@@ -86,6 +86,12 @@ void RumbleManager::Menu()
 					ImGui::InputFloat("Small Amp Left Balance", &smallAmpLeftBalance);
 					ImGui::InputFloat("Small Amp Right Balance", &smallAmpRightBalance);
 
+					ImGui::InputFloat("Large Amp Pre Mult", &largeAmpPreMult);
+					ImGui::InputFloat("Large Amp Pow", &largeAmpPow);
+					ImGui::InputFloat("Large Amp Post Mult", &largeAmpPostMult);
+					ImGui::InputFloat("Large Amp Left Balance", &largeAmpLeftBalance);
+					ImGui::InputFloat("Large Amp Right Balance", &largeAmpRightBalance);
+
 					ImGui::EndTabItem();
 				}
 				if (ImGui::BeginTabItem("Custom Sources")) {
@@ -150,7 +156,6 @@ void RumbleManager::Menu()
 		}
 	}
 }
-
 
 std::string capitalize(std::string s)
 {
@@ -235,11 +240,18 @@ void RumbleManager::Load()
 			GetSettingFloat("Grindstones", grindstoneRightPower);
 
 			GetSettingInt("XAudioDSP", baseRumbleOverride);
+
 			GetSettingFloat("XAudioDSP", smallAmpPreMult);
 			GetSettingFloat("XAudioDSP", smallAmpPow);
 			GetSettingFloat("XAudioDSP", smallAmpPostMult);
 			GetSettingFloat("XAudioDSP", smallAmpLeftBalance);
 			GetSettingFloat("XAudioDSP", smallAmpRightBalance);
+
+			GetSettingFloat("XAudioDSP", largeAmpPreMult);
+			GetSettingFloat("XAudioDSP", largeAmpPow);
+			GetSettingFloat("XAudioDSP", largeAmpPostMult);
+			GetSettingFloat("XAudioDSP", largeAmpLeftBalance);
+			GetSettingFloat("XAudioDSP", largeAmpRightBalance);
 
 			for (int i = 0; i < VibrationsCustom::VibrationsCustomCount; i++) {
 				VibrationCustom& source = sourcesCustom[(VibrationsCustom)i];
@@ -247,7 +259,7 @@ void RumbleManager::Load()
 				source.motors.x = (float)ini.GetDoubleValue(name, "LeftMotor", source.motors.x);
 				source.motors.y = (float)ini.GetDoubleValue(name, "RightMotor", source.motors.y);
 				source.duration = (float)ini.GetDoubleValue(name, "Duration", source.duration);
-				source.type = (VibrationType)std::stoi(ini.GetValue(name, "Type",  std::to_string(source.type).c_str()));
+				source.type = (VibrationType)std::stoi(ini.GetValue(name, "Type", std::to_string(source.type).c_str()));
 			}
 		}
 	} catch (...) {
@@ -312,11 +324,18 @@ void RumbleManager::Save()
 			SetSettingFloat("Grindstones", grindstoneRightPower);
 
 			SetSettingInt("XAudioDSP", baseRumbleOverride);
+
 			SetSettingFloat("XAudioDSP", smallAmpPreMult);
 			SetSettingFloat("XAudioDSP", smallAmpPow);
 			SetSettingFloat("XAudioDSP", smallAmpPostMult);
 			SetSettingFloat("XAudioDSP", smallAmpLeftBalance);
 			SetSettingFloat("XAudioDSP", smallAmpRightBalance);
+
+			SetSettingFloat("XAudioDSP", largeAmpPreMult);
+			SetSettingFloat("XAudioDSP", largeAmpPow);
+			SetSettingFloat("XAudioDSP", largeAmpPostMult);
+			SetSettingFloat("XAudioDSP", largeAmpLeftBalance);
+			SetSettingFloat("XAudioDSP", largeAmpRightBalance);
 
 			for (int i = 0; i < VibrationsCustom::VibrationsCustomCount; i++) {
 				VibrationCustom& source = sourcesCustom[(VibrationsCustom)i];
@@ -330,19 +349,6 @@ void RumbleManager::Save()
 			ini.SaveFile(L"Data\\SKSE\\Plugins\\Rumble.ini");
 		}
 	} catch (...) {
-	}
-}
-
-void RumbleManager::UpdateOverrides()
-{
-	VanillaOverrideBase();
-	for (auto& entry : vanillaOverrides) {
-		if (auto form = FormUtil::GetFormFromIdentifier(entry.first)) {
-			if (auto formTyped = form->As<RE::BGSSoundDescriptorForm>()) {
-				RE::BGSStandardSoundDef* soundDef = (RE::BGSStandardSoundDef*)formTyped->soundDescriptor;
-				soundDef->lengthCharacteristics.rumbleSendValue = (std::uint8_t)entry.second.rumbleSendValue;
-			}
-		}
 	}
 }
 
@@ -360,6 +366,19 @@ void RumbleManager::VanillaOverrideBase()
 	}
 }
 
+void RumbleManager::UpdateOverrides()
+{
+	VanillaOverrideBase();
+	for (auto& entry : vanillaOverrides) {
+		if (auto form = FormUtil::GetFormFromIdentifier(entry.first)) {
+			if (auto formTyped = form->As<RE::BGSSoundDescriptorForm>()) {
+				RE::BGSStandardSoundDef* soundDef = (RE::BGSStandardSoundDef*)formTyped->soundDescriptor;
+				soundDef->lengthCharacteristics.rumbleSendValue = (std::uint8_t)entry.second.rumbleSendValue;
+			}
+		}
+	}
+}
+
 void RumbleManager::DataLoaded()
 {
 	auto  dataHandler = RE::TESDataHandler::GetSingleton();
@@ -368,6 +387,9 @@ void RumbleManager::DataLoaded()
 		RE::BGSStandardSoundDef* sd = (RE::BGSStandardSoundDef*)entry->soundDescriptor;
 		if (sd->lengthCharacteristics.rumbleSendValue == 0) {
 			overrideForms.insert(sd);
+		}
+		if (sd->lengthCharacteristics.rumbleSendValue == 255) {
+			sd->lengthCharacteristics.rumbleSendValue = 0;
 		}
 	}
 	auto& weaponArray = dataHandler->GetFormArray<RE::TESObjectWEAP>();
@@ -423,7 +445,6 @@ void RumbleManager::FootstepEvent(const RE::BGSFootstepEvent* a_event)
 				}
 			}
 		} else if (a_event->actor == player->GetHandle()) {
-
 			if (a_event->tag == "FootSprintLeft") {
 				VibrationCustom temp = sourcesCustom[VibrationsCustom::FootstepSprintLeft];
 				Trigger(temp);
@@ -518,7 +539,7 @@ bool MenuOpenCloseEventHandler::Register()
 	return true;
 }
 
-bool PlayerHasCrossbow()
+bool RumbleManager::PlayerHasCrossbow()
 {
 	if (auto player = RE::PlayerCharacter::GetSingleton()) {
 		if (auto object = player->GetEquippedObject(false)) {
@@ -562,8 +583,8 @@ void RumbleManager::SetState(XINPUT_VIBRATION* pVibration)
 			if (!ui->GameIsPaused()) {
 				std::lock_guard<std::shared_mutex> lk(mutex);
 
-				long double leftVibration = 0;
-				long double rightVibration = 0;
+				double leftVibration = 0;
+				double rightVibration = 0;
 
 				static float& deltaTime = (*(float*)REL::RelocationID(523660, 410199).address());  // 2F6B948, 30064C8
 
@@ -609,8 +630,8 @@ void RumbleManager::SetState(XINPUT_VIBRATION* pVibration)
 							if (!cell->IsInteriorCell()) {
 								if (sky->IsRaining()) {
 									double noise = pow(noise1.noise1D_01(noise1timer), rainPow);
-									leftVibration = std::lerp(max(leftVibration, noise * rainLeftPower), leftVibration, (long double)level);
-									rightVibration = std::lerp(max(rightVibration, noise * rainRightPower), rightVibration, (long double)level);
+									leftVibration = std::lerp(max(leftVibration, noise * rainLeftPower), leftVibration, (double)level);
+									rightVibration = std::lerp(max(rightVibration, noise * rainRightPower), rightVibration, (double)level);
 								}
 							}
 						}
@@ -631,28 +652,31 @@ void RumbleManager::SetState(XINPUT_VIBRATION* pVibration)
 				}
 
 				double smallAmp = (pow(1 + (smallRumble * smallAmpPreMult), smallAmpPow * powMult) - 1) * smallAmpPostMult;
+				double largeAmp = (pow(1 + (largeRumble * largeAmpPreMult), largeAmpPow * powMult) - 1) * largeAmpPostMult;
 
 				if (auto player = RE::PlayerCharacter::GetSingleton()) {
 					if (auto weapon = player->GetAttackingWeapon()) {
 						if (auto object = weapon->object) {
 							smallAmp *= swingWeaponMult;
+							largeAmp *= swingWeaponMult;
 						}
 					}
 				}
 
 				smallAmp = std::clamp(smallAmp, 0.0, 1.0);
+				largeAmp = std::clamp(largeAmp, 0.0, 1.0);
 
-				auto leftAdd = std::lerp(smallAmp * smallAmpLeftBalance, smallAmp, smallAmp);
-				auto rightAdd = std::lerp(smallAmp, smallAmp * smallAmpRightBalance, smallAmp);
+				double leftAdd = std::lerp(smallAmp * smallAmpLeftBalance, smallAmp, smallAmp) + std::lerp(largeAmp, largeAmp * largeAmpRightBalance, largeAmp);
+				double rightAdd = std::lerp(smallAmp, smallAmp * smallAmpRightBalance, smallAmp) + std::lerp(largeAmp * largeAmpLeftBalance, largeAmp, largeAmp);
 
-				leftVibration += leftAdd + largeAmp;
-				rightVibration += rightAdd + largeAmp;
+				double leftVibrationOriginal = (double)pVibration->wLeftMotorSpeed / 65535;
+				double rightVibrationOriginal = (double)pVibration->wRightMotorSpeed / 65535;
 
-				long double leftVibrationOriginal = (double)pVibration->wLeftMotorSpeed / 65535;
-				long double rightVibrationOriginal = (double)pVibration->wRightMotorSpeed / 65535;
+				leftVibration += leftAdd;
+				rightVibration += rightAdd;
 
-				leftVibrationOriginal += leftAdd + largeAmp;
-				rightVibrationOriginal += rightAdd + largeAmp;
+				leftVibrationOriginal += leftAdd;
+				rightVibrationOriginal += rightAdd;
 
 				leftVibration = min(leftVibration, 1.0f);
 				rightVibration = min(rightVibration, 1.0f);
@@ -673,14 +697,16 @@ void RumbleManager::SetState(XINPUT_VIBRATION* pVibration)
 				long double rightVibrationOriginal = (double)pVibration->wRightMotorSpeed / 65535;
 
 				double smallAmp = (pow(1 + (smallRumble * smallAmpPreMult), smallAmpPow) - 1) * smallAmpPostMult;
+				double largeAmp = (pow(1 + (largeRumble * largeAmpPreMult), largeAmpPow) - 1) * largeAmpPostMult;
 
 				smallAmp = std::clamp(smallAmp, 0.0, 1.0);
+				largeAmp = std::clamp(largeAmp, 0.0, 1.0);
 
-				auto leftAdd = std::lerp(smallAmp * smallAmpLeftBalance, smallAmp, smallAmp);
-				auto rightAdd = std::lerp(smallAmp, smallAmp * smallAmpRightBalance, smallAmp);
+				double leftAdd = std::lerp(smallAmp * smallAmpLeftBalance, smallAmp, smallAmp) + std::lerp(largeAmp, largeAmp * largeAmpRightBalance, largeAmp);
+				double rightAdd = std::lerp(smallAmp, smallAmp * smallAmpRightBalance, smallAmp) + std::lerp(largeAmp * largeAmpLeftBalance, largeAmp, largeAmp);
 
-				leftVibrationOriginal += leftAdd + largeAmp;
-				rightVibrationOriginal += rightAdd + largeAmp;
+				leftVibrationOriginal += leftAdd;
+				rightVibrationOriginal += rightAdd;
 
 				leftVibrationOriginal = min(leftVibrationOriginal, 1.0f);
 				rightVibrationOriginal = min(rightVibrationOriginal, 1.0f);

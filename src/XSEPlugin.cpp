@@ -1,6 +1,5 @@
 #include "RumbleManager.h"
 
-
 extern "C" __declspec(dllexport) const char* NAME = "Rumble";
 
 extern "C" __declspec(dllexport) const char* DESCRIPTION = "by doodlez\n";
@@ -30,12 +29,12 @@ static void MessageHandler(SKSE::MessagingInterface::Message* message)
 	case SKSE::MessagingInterface::kDataLoaded:
 		{
 			RumbleManager::GetSingleton()->DataLoaded();
-			if (!reshade::register_addon(hModuleBackup)) {
-				logger::info("Failed to register addon");
-			} else {
+			if (reshade::register_addon(hModuleBackup)) {
 				logger::info("Registered addon");
+				reshade::register_overlay(nullptr, &DrawMenu);
+			} else {
+				logger::info("Failed to register addon");
 			}
-			reshade::register_overlay(nullptr, &DrawMenu);
 			break;
 		}
 	case SKSE::MessagingInterface::kPostLoadGame:

@@ -1,20 +1,6 @@
 {
  "Events": [
   {
-   "Duration": 0.20000000298023224,
-   "Event": "FootSprintLeft",
-   "Left": 0.014999999664723873,
-   "Right": 0.0,
-   "Type": 0
-  },
-  {
-   "Duration": 0.20000000298023224,
-   "Event": "FootSprintRight",
-   "Left": 0.0,
-   "Right": 0.029999999329447746,
-   "Type": 0
-  },
-  {
    "Duration": 0.05000000074505806,
    "Event": "SoundPlay.NPCHumanPickAxeDistant",
    "Left": 1.0,
